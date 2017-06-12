@@ -12,7 +12,9 @@ var api = {
             getUserInfo:base +'user/info?',
             batchGetUserInfo:base +'user/info/batchget?',  //access_token=ACCESS_TOKEN，POST请求
 		    getUserOpenIds:base +'user/get?',  //access_token=ACCESS_TOKEN&next_openid=NEXT_OPENID，GET请求
-        }
+        },
+		//https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token=ACCESS_TOKEN
+		customReply:base + 'message/custom/send?'
 }
 
 function Wechat(opts){     //构造函数
@@ -43,18 +45,18 @@ Wechat.prototype.fetchAccessToken = function(){
 		}
 	}
 
-	console.log('no access_token or invalid!')
-
 	this.getAccessToken().then(function(data){
 		try{
 			data = JSON.parse(data);
 		}catch(e){
+            console.log('从本地文件获取token失败,需要从微信api重新获取')
 			return that.updateAccessToken();
 		}
 		if(that.isvalidAccessToken(data)){
+            console.log('sucess !! 从本地文件取出可用的token')
 			return Promise.resolve(data);
 		}else{
-			console.log('access_token 过期,需要重新获取');
+			console.log('access_token 过期,需要去微信api重新获取');
 			return that.updateAccessToken();
 		}
 	}).then(function(data){
@@ -156,5 +158,41 @@ Wechat.prototype.getUserOpenIds = function(next_openid){
 		});
 	});
 }
+
+Wechat.prototype.customReply = function(touser,text){
+	var that = this;
+	return new Promise(function(resolve,reject){
+
+		that.fetchAccessToken().then(function(data){
+			var url = api.customReply + 'access_token=' + data.access_token;
+			var opts = {
+				method:'POST',
+				url:url,
+				body:{
+					"touser":touser,
+					"msgtype":"text",
+					"text":
+					{
+						"content":text
+					}
+				},
+				json:true
+			}
+			request(opts).then(function(response){
+				var _data = response.body;
+				if(!_data.errcode){
+					resolve(_data);
+				}else{
+					throw new Error('customReply message failed: ' + _data.errmsg);
+				}
+			}).catch(function(err){
+					reject(err);
+				});
+		})
+	
+	})
+
+}
+
 
 module.exports = Wechat;
